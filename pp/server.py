@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 api = FastAPI(
     title="Planning Poker",
-    description="A simple Planning Poker API and Websocket server.",
+    description="A minimalist poker planning web application backend.",
 )
 
 origins = [
@@ -50,7 +50,7 @@ GAME_SESSIONS: dict[str, GameSession] = {}
 DB = MemoryDeckDB()
 
 
-@api.post("/game", response_model=Game)
+@api.post("/api/game", response_model=Game)
 async def create_game(game: CreateGame):
     """Create a new planning poker game."""
     # make sure the deck exists
@@ -69,7 +69,7 @@ async def create_game(game: CreateGame):
     return game
 
 
-@api.post("/join/{code}", response_model=Player)
+@api.post("/api/join/{code}", response_model=Player)
 async def join_game(player: Player, code: str = Path(regex=CODE_RE)):
     """Join an existing planning poker game."""
     if code not in GAME_SESSIONS:
@@ -80,13 +80,13 @@ async def join_game(player: Player, code: str = Path(regex=CODE_RE)):
     return player
 
 
-@api.get("/decks", response_model=list[Deck])
+@api.get("/api/decks", response_model=list[Deck])
 async def decks():
     """Returns a list of the available decks."""
     return await DB.get_decks()
 
 
-@api.get("/decks/{deck_id}", response_model=Deck)
+@api.get("/api/decks/{deck_id}", response_model=Deck)
 async def decks(deck_id: int = Path(gt=0)):
     """Returns a deck by ID"""
     try:
@@ -95,7 +95,7 @@ async def decks(deck_id: int = Path(gt=0)):
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(ex))
 
 
-@api.websocket("/ws/{player_id}/{code}")
+@api.websocket("/api/ws/{player_id}/{code}")
 async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = Path(regex=CODE_RE)):
     await websocket.accept()
     log.info(f"Player with ID '{player_id}' is connecting...")
