@@ -3,7 +3,7 @@ import pytest
 from fastapi import WebSocket
 from fastapi.testclient import TestClient
 
-from pp.model import Deck, Game, Player, GameState, GenericMessage, MessageType, PlayerState
+from pp.model import Deck, Game, Player, GameState, GenericMessage, MessageType, PlayerState, ResetMessage
 from pp.server import api, GAME_SESSIONS
 
 
@@ -252,14 +252,16 @@ class TestServer:
             assert gs.players[bob.id].vote == 5
 
             # send a reset request by the admin now
-            alice_ws.send_json({"type": "RESET", "payload": None})
+            alice_ws.send_json({"type": "RESET", "payload": "http://127.0.0.1:5137/some/ticket/url"})
 
             # fetch the broadcast return message
-            msg_a, msg_b = GenericMessage.parse_obj(alice_ws.receive_json()), GenericMessage.parse_obj(
+            msg_a, msg_b = ResetMessage.parse_obj(alice_ws.receive_json()), ResetMessage.parse_obj(
                 bob_ws.receive_json()
             )
             assert msg_a.type == MessageType.RESETGAME
+            assert msg_a.payload == "http://127.0.0.1:5137/some/ticket/url"
             assert msg_b.type == MessageType.RESETGAME
+            assert msg_b.payload == "http://127.0.0.1:5137/some/ticket/url"
 
             # make sure the votes have been reset in the session
             assert gs.players[alice.id].vote is None

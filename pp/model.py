@@ -2,7 +2,7 @@ import enum
 import typing
 import uuid
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AnyHttpUrl
 from pydantic.generics import GenericModel
 
 
@@ -112,4 +112,5 @@ PlayerMessage = GenericMessage[Player]  # provides generic information related t
 PlayerStateMessage = GenericMessage[PlayerState]  # provides generic information on the player's state
 SubmitVoteMessage = GenericMessage[float]  # a vote submission from a player
 VoteDataMessage = GenericMessage[dict[str, typing.Optional[float]]]  # reveals the votes to all other players
-GameStateMessage = GenericMessage[GameState]
+GameStateMessage = GenericMessage[GameState]  # a message sent to clients to sync the game state from the server
+ResetMessage = GenericMessage[typing.Optional[AnyHttpUrl]]  # a message to indicate the game should be reset

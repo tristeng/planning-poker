@@ -17,7 +17,9 @@ from pp.model import (
     SubmitVoteMessage,
     PlayerMessage,
     VoteDataMessage,
-    GameStateMessage, PlayerStateMessage,
+    GameStateMessage,
+    PlayerStateMessage,
+    ResetMessage,
 )
 from pp.session import GameSession
 from pp.utils import random_code, CODE_RE
@@ -157,9 +159,14 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
                 if MessageType.is_admin_message(msg.type):
                     if session.is_admin(player):
                         if msg.type == MessageType.RESET:
+                            # admin may have passed along the link for the next round, so parse it out
+                            msg = ResetMessage.parse_obj(data)
+
                             # tell all clients to reset, and reset the server side vote data
                             session.reset_votes()
-                            await session.broadcast(Message(type=MessageType.RESETGAME, payload=None))
+
+                            # broadcast the message along with the optional payload (link to next ticket)
+                            await session.broadcast(ResetMessage(type=MessageType.RESETGAME, payload=msg.payload))
 
                         if msg.type == MessageType.REVEAL:
                             # broadcast all the user's votes at the same time
