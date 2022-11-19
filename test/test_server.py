@@ -14,19 +14,19 @@ def client() -> TestClient:
 
 @pytest.fixture
 def game(client) -> Game:
-    response = client.post("/game", json={"name": "My first game", "deck_id": 1})
+    response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
     return Game.parse_obj(response.json())
 
 
 @pytest.fixture
 def alice(client, game) -> Player:
-    response = client.post(f"/join/{game.code}", json={"username": "Alice"})
+    response = client.post(f"/api/join/{game.code}", json={"username": "Alice"})
     return Player.parse_obj(response.json())
 
 
 @pytest.fixture
 def bob(client, game) -> Player:
-    response = client.post(f"/join/{game.code}", json={"username": "Bob"})
+    response = client.post(f"/api/join/{game.code}", json={"username": "Bob"})
     return Player.parse_obj(response.json())
 
 
@@ -34,7 +34,7 @@ class TestServer:
     """Depends on the default MemoryDB"""
 
     def test_create_game(self, client: TestClient):
-        response = client.post("/game", json={"name": "My first game", "deck_id": 1})
+        response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
         assert response.status_code == 200
 
         game1 = Game.parse_obj(response.json())
@@ -42,18 +42,18 @@ class TestServer:
         assert game1.name == "My first game"
         assert game1.code is not None
 
-        response = client.post("/game", json={"name": "My first game", "deck_id": 1})
+        response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
         assert response.status_code == 200
 
         game2 = Game.parse_obj(response.json())
         assert game1.code != game2.code
 
     def test_create_game_invalid_deck(self, client: TestClient):
-        response = client.post("/game", json={"name": "My first game", "deck_id": 999})
+        response = client.post("/api/game", json={"name": "My first game", "deck_id": 999})
         assert response.status_code == 404
 
     def test_join_game(self, client: TestClient, game: Game):
-        response = client.post(f"/join/{game.code}", json={"username": "Alice"})
+        response = client.post(f"/api/join/{game.code}", json={"username": "Alice"})
         assert response.status_code == 200
 
         player = Player.parse_obj(response.json())
@@ -61,11 +61,11 @@ class TestServer:
         assert player.id is not None
 
     def test_join_game_not_exists(self, client: TestClient):
-        response = client.post("/join/abcd", json={"username": "Alice"})
+        response = client.post("/api/join/abcd", json={"username": "Alice"})
         assert response.status_code == 404
 
     def test_decks(self, client: TestClient):
-        response = client.get("/decks")
+        response = client.get("/api/decks")
         assert response.status_code == 200
 
         data = response.json()
@@ -77,20 +77,20 @@ class TestServer:
         assert len(deck.cards) > 0
 
     def test_get_deck(self, client: TestClient):
-        response = client.get("/decks/1")
+        response = client.get("/api/decks/1")
         assert response.status_code == 200
 
         deck = Deck.parse_obj(response.json())
         assert deck.id == 1
         assert len(deck.cards) > 0
 
-        response = client.get("/decks/2")
+        response = client.get("/api/decks/2")
         assert response.status_code == 404
 
     def test_websocket_endpoint_join_and_leave(self, client: TestClient, game: Game, alice: Player):
         assert game.code in GAME_SESSIONS
 
-        with client.websocket_connect(f"/ws/{alice.id}/{game.code}") as websocket:
+        with client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as websocket:
             # upon connection we should get the game state
             data = websocket.receive_json()
             msg = GenericMessage.parse_obj(data)
@@ -169,8 +169,8 @@ class TestServer:
 
     def test_websocket_vote(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
-            client.websocket_connect(f"/ws/{alice.id}/{game.code}") as alice_ws,
-            client.websocket_connect(f"/ws/{bob.id}/{game.code}") as bob_ws,
+            client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
+            client.websocket_connect(f"/api/ws/{bob.id}/{game.code}") as bob_ws,
         ):
             # assert broadcast messages upon joining
             self._assert_upon_join(alice_ws, bob_ws, alice, bob)
@@ -191,8 +191,8 @@ class TestServer:
 
     def test_websocket_observe(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
-            client.websocket_connect(f"/ws/{alice.id}/{game.code}") as alice_ws,
-            client.websocket_connect(f"/ws/{bob.id}/{game.code}") as bob_ws,
+            client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
+            client.websocket_connect(f"/api/ws/{bob.id}/{game.code}") as bob_ws,
         ):
             # assert broadcast messages upon joining
             self._assert_upon_join(alice_ws, bob_ws, alice, bob)
@@ -213,8 +213,8 @@ class TestServer:
 
     def test_websocket_sync(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
-            client.websocket_connect(f"/ws/{alice.id}/{game.code}") as alice_ws,
-            client.websocket_connect(f"/ws/{bob.id}/{game.code}") as bob_ws,
+            client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
+            client.websocket_connect(f"/api/ws/{bob.id}/{game.code}") as bob_ws,
         ):
             # assert broadcast messages upon joining
             self._assert_upon_join(alice_ws, bob_ws, alice, bob)
@@ -231,8 +231,8 @@ class TestServer:
 
     def test_websocket_reset(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
-            client.websocket_connect(f"/ws/{alice.id}/{game.code}") as alice_ws,
-            client.websocket_connect(f"/ws/{bob.id}/{game.code}") as bob_ws,
+            client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
+            client.websocket_connect(f"/api/ws/{bob.id}/{game.code}") as bob_ws,
         ):
             # assert broadcast messages upon joining
             self._assert_upon_join(alice_ws, bob_ws, alice, bob)
@@ -269,8 +269,8 @@ class TestServer:
 
     def test_websocket_reveal(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
-            client.websocket_connect(f"/ws/{alice.id}/{game.code}") as alice_ws,
-            client.websocket_connect(f"/ws/{bob.id}/{game.code}") as bob_ws,
+            client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
+            client.websocket_connect(f"/api/ws/{bob.id}/{game.code}") as bob_ws,
         ):
             # assert broadcast messages upon joining
             self._assert_upon_join(alice_ws, bob_ws, alice, bob)
@@ -304,7 +304,7 @@ class TestServer:
         player = Player(username="Cassie")
 
         # if a player attempts to open a WS without joining, we should get a message saying it was closed
-        with client.websocket_connect(f"/ws/{player.id}/{game.code}") as ws:
+        with client.websocket_connect(f"/api/ws/{player.id}/{game.code}") as ws:
             msg = ws.receive()
 
             assert "type" in msg
@@ -320,7 +320,7 @@ class TestServer:
         player = Player(username="Cassie")
 
         # if a player attempts to open a WS to a game that doesn't exist, we should get a message saying it was closed
-        with client.websocket_connect(f"/ws/{player.id}/abcdefg") as ws:
+        with client.websocket_connect(f"/api/ws/{player.id}/abcdefg") as ws:
             msg = ws.receive()
 
             assert "type" in msg
