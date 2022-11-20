@@ -1,4 +1,5 @@
 import logging
+import os
 from http import HTTPStatus
 from uuid import UUID
 
@@ -35,12 +36,20 @@ api = FastAPI(
 
 origins = [
     "http://127.0.0.1",
-    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5173",  # the default origin when running the frontend dev server
 ]
+
+# allow the CORS origins to be extended via environment variable
+pp_cors_urls = os.getenv('PP_CORS_URLS', None)
+if pp_cors_urls is not None:
+    log.info(f"Attempting to parse and add CORS origins from '{pp_cors_urls}'...")
+    urls = set(map(lambda x: x.strip(), pp_cors_urls.split(',')))
+    origins = set(origins) | urls
+    log.info(f"Updated CORS origins: {', '.join(origins)}")
 
 api.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=list(origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
