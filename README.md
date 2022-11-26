@@ -33,3 +33,6 @@ docker logs pp
 INFO:pp.server:Attempting to parse and add CORS origins from 'https://someorigin.com,http://someorigin.com:8000'...
 INFO:pp.server:Updated CORS origins: https://someorigin.com, http://someorigin.com:8000, http://127.0.0.1:5173, http://127.0.0.1
 ```
+
+If you wish to define your own set of decks, modify the file in `conf/decks.json` with your set of desired decks. Be 
+sure to give each deck a unique integer ID.

@@ -1,5 +1,6 @@
 import logging
 import os
+import pathlib
 from http import HTTPStatus
 from uuid import UUID
 
@@ -40,10 +41,10 @@ origins = [
 ]
 
 # allow the CORS origins to be extended via environment variable
-pp_cors_urls = os.getenv('PP_CORS_URLS', None)
+pp_cors_urls = os.getenv("PP_CORS_URLS", None)
 if pp_cors_urls is not None:
     log.info(f"Attempting to parse and add CORS origins from '{pp_cors_urls}'...")
-    urls = set(map(lambda x: x.strip(), pp_cors_urls.split(',')))
+    urls = set(map(lambda x: x.strip(), pp_cors_urls.split(",")))
     origins = set(origins) | urls
     log.info(f"Updated CORS origins: {', '.join(origins)}")
 
@@ -56,7 +57,7 @@ api.add_middleware(
 )
 
 GAME_SESSIONS: dict[str, GameSession] = {}
-DB = MemoryDeckDB()
+DB = MemoryDeckDB(pathlib.Path("conf/decks.json"))
 
 
 @api.post("/api/game", response_model=Game)

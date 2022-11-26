@@ -1,8 +1,10 @@
+import pathlib
+
 import pytest
 
 from pp.db import MemoryDeckDB
 
-db = MemoryDeckDB()
+db = MemoryDeckDB(pathlib.Path("conf/decks.json"))
 
 
 class TestMemoryDB:

@@ -30,6 +30,7 @@ class Deck(BaseModel):
     """The deck model - contains an integer ID and a list of cards."""
 
     id: int = Field(title="The unique ID for this deck")
+    name: str = Field(title="A name for this deck")
     cards: list[Card] = Field(title="The cards defined for this deck")
 
 

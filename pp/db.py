@@ -1,6 +1,8 @@
 import abc
+import json
+from pathlib import Path
 
-from pp.model import Deck, Card
+from pp.model import Deck
 
 
 class DeckDB(abc.ABC):
@@ -24,31 +26,29 @@ class DeckDB(abc.ABC):
 
 
 class MemoryDeckDB(DeckDB):
-    """An in memory deck database - does not persist state upon server restart."""
+    """An in memory deck database - loads decks from a JSON file upon init."""
 
-    DECKS = {
-        1: Deck(
-            id=1,
-            cards=[
-                Card(label="1/2", value=0.5),
-                Card(label="1", value=1),
-                Card(label="2", value=2),
-                Card(label="3", value=3),
-                Card(label="5", value=5),
-                Card(label="8", value=8),
-                Card(label="13", value=13),
-                Card(label="21", value=21),
-                Card(label="?", value=100),
-            ],
-        )
-    }
+    def __init__(self, config: Path):
+        """Initializes a new Memory Deck DB
+
+        :param config: the path to a JSON file that contains a list of decks
+        """
+        self.decks: dict[int, Deck] = {}
+
+        # we expect this to be a list of decks
+        with config.open() as f:
+            parsed = json.load(f)
+
+        for obj in parsed:
+            deck = Deck.parse_obj(obj)
+            self.decks[deck.id] = deck
 
     async def get_decks(self) -> list[Deck]:
         """Returns the available decks from the database.
 
         :return: the list of decks
         """
-        return list(self.DECKS.values())
+        return list(self.decks.values())
 
     async def get_deck_by_id(self, deck_id: int) -> Deck:
         """Returns a deck by it's ID
@@ -58,6 +58,6 @@ class MemoryDeckDB(DeckDB):
         :raises: ValueError if no deck with the ID is found
         """
         try:
-            return self.DECKS[deck_id]
+            return self.decks[deck_id]
         except KeyError:
             raise ValueError(f"No deck exists with ID {deck_id}")
