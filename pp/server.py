@@ -42,10 +42,10 @@ origins = {
 
 # allow the CORS origins to be extended via environment variable
 pp_cors_urls = os.getenv("PP_CORS_URLS", None)
-if pp_cors_urls is not None:
+if pp_cors_urls is not None:  # pragma: no cover
     log.info(f"Attempting to parse and add CORS origins from '{pp_cors_urls}'...")
     urls = set(map(lambda x: x.strip(), pp_cors_urls.split(",")))
-    origins = set(origins) | urls
+    origins |= urls
     log.info(f"Updated CORS origins: {', '.join(origins)}")
 
 api.add_middleware(
@@ -174,6 +174,9 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
                             # admin may have passed along the link for the next round, so parse it out
                             msg = ResetMessage.model_validate(data)
 
+                            # update the ticket URL in the game state
+                            session.ticket_url = None if not msg.payload else msg.payload
+
                             # tell all clients to reset, and reset the server side vote data
                             session.reset_votes()
 
@@ -192,8 +195,11 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
 
     except WebSocketDisconnect:
         log.info(f"{player} has disconnected")
-        await session.broadcast(PlayerMessage(type=MessageType.DISCONNECTED, payload=player))
+
+        # clear the websocket first before broadcasting, otherwise the client will receive the message
         session.clear_websocket(player)
+
+        await session.broadcast(PlayerMessage(type=MessageType.DISCONNECTED, payload=player))
 
         # check if the game session has become empty, in which case clean up the memory
         if session.empty:

@@ -238,6 +238,7 @@ class TestServer:
 
             gs = GAME_SESSIONS[game.code]
             assert gs.is_admin(alice) is True
+            assert gs.ticket_url is None
 
             # set some votes on the game session that we can reset
             gs.players[alice.id].vote = 3
@@ -250,7 +251,7 @@ class TestServer:
             assert gs.players[alice.id].vote == 3
             assert gs.players[bob.id].vote == 5
 
-            # send a reset request by the admin now
+            # send a reset request by the admin now along with the next ticket
             alice_ws.send_json({"type": "RESET", "payload": "http://127.0.0.1:5137/some/ticket/url"})
 
             # fetch the broadcast return message
@@ -261,6 +262,8 @@ class TestServer:
             assert str(msg_a.payload) == "http://127.0.0.1:5137/some/ticket/url"
             assert msg_b.type == MessageType.RESETGAME
             assert str(msg_b.payload) == "http://127.0.0.1:5137/some/ticket/url"
+
+            assert str(gs.ticket_url) == "http://127.0.0.1:5137/some/ticket/url"
 
             # make sure the votes have been reset in the session
             assert gs.players[alice.id].vote is None

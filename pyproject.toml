@@ -34,3 +34,13 @@ packages = [
     "pp",
     "test",
 ]
+
+[tool.coverage.run]
+command_line = "-m pytest"
+branch = true
+source = [
+    "pp",
+]
+
+[tool.coverage.report]
+show_missing = true

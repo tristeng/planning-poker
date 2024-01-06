@@ -90,6 +90,7 @@ class GameState(BaseModel):
 
     game: Game
     player_states: dict[str, PlayerState]
+    ticket_url: typing.Optional[AnyHttpUrl] = None
 
 
 Payload = typing.TypeVar("Payload")
