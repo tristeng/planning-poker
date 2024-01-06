@@ -1,4 +1,6 @@
 # Planning Poker
+![python package](https://github.com/tristeng/planning-poker/actions/workflows/python-package.yml/badge.svg)
+
 This project is a minimalist poker planning web application backend. The companion frontend application can be found
 [here](https://github.com/tristeng/planning-poker-ui).
 

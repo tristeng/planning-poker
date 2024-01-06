@@ -40,7 +40,7 @@ class MemoryDeckDB(DeckDB):
             parsed = json.load(f)
 
         for obj in parsed:
-            deck = Deck.parse_obj(obj)
+            deck = Deck.model_validate(obj)
             self.decks[deck.id] = deck
 
     async def get_decks(self) -> list[Deck]:

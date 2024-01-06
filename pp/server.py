@@ -35,17 +35,17 @@ api = FastAPI(
     description="A minimalist poker planning web application backend.",
 )
 
-origins = [
+origins = {
     "http://127.0.0.1",
     "http://127.0.0.1:5173",  # the default origin when running the frontend dev server
-]
+}
 
 # allow the CORS origins to be extended via environment variable
 pp_cors_urls = os.getenv("PP_CORS_URLS", None)
-if pp_cors_urls is not None:
+if pp_cors_urls is not None:  # pragma: no cover
     log.info(f"Attempting to parse and add CORS origins from '{pp_cors_urls}'...")
     urls = set(map(lambda x: x.strip(), pp_cors_urls.split(",")))
-    origins = set(origins) | urls
+    origins |= urls
     log.info(f"Updated CORS origins: {', '.join(origins)}")
 
 api.add_middleware(
@@ -80,7 +80,7 @@ async def create_game(game: CreateGame):
 
 
 @api.post("/api/join/{code}", response_model=Player)
-async def join_game(player: Player, code: str = Path(regex=CODE_RE)):
+async def join_game(player: Player, code: str = Path(pattern=CODE_RE)):
     """Join an existing planning poker game."""
     if code not in GAME_SESSIONS:
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=f"No existing game found with code '{code}'")
@@ -97,7 +97,7 @@ async def decks():
 
 
 @api.get("/api/decks/{deck_id}", response_model=Deck)
-async def decks(deck_id: int = Path(gt=0)):
+async def get_deck_by_id(deck_id: int = Path(gt=0)):
     """Returns a deck by ID"""
     try:
         return await DB.get_deck_by_id(deck_id)
@@ -106,7 +106,7 @@ async def decks(deck_id: int = Path(gt=0)):
 
 
 @api.websocket("/api/ws/{player_id}/{code}")
-async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = Path(regex=CODE_RE)):
+async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = Path(pattern=CODE_RE)):
     await websocket.accept()
     log.info(f"Player with ID '{player_id}' is connecting...")
 
@@ -131,7 +131,7 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
     session.set_websocket(player=player, websocket=websocket)
     try:
         # send the client the current state of the game
-        await websocket.send_text(GameStateMessage(type=MessageType.STATE, payload=session.state).json())
+        await websocket.send_text(GameStateMessage(type=MessageType.STATE, payload=session.state).model_dump_json())
 
         # let other's know this user has connected
         await session.broadcast(PlayerStateMessage(type=MessageType.CONNECTED, payload=session.player_state(player.id)))
@@ -145,12 +145,12 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
 
             try:
                 # parse/validate the message
-                msg = Message.parse_obj(data)
+                msg = Message.model_validate(data)
 
                 # handle the message based on its type
                 if msg.type == MessageType.SUBMITVOTE:
                     # player submitted a vote, let all other clients know
-                    msg = SubmitVoteMessage.parse_obj(data)
+                    msg = SubmitVoteMessage.model_validate(data)
 
                     # should really validate the vote is part of the selected deck...
                     session.update_vote(player=player, vote=msg.payload)
@@ -164,13 +164,18 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
 
                 # clients can request to sync with the current game state
                 if msg.type == MessageType.SYNC:
-                    await websocket.send_text(GameStateMessage(type=MessageType.STATE, payload=session.state).json())
+                    await websocket.send_text(
+                        GameStateMessage(type=MessageType.STATE, payload=session.state).model_dump_json()
+                    )
 
                 if MessageType.is_admin_message(msg.type):
                     if session.is_admin(player):
                         if msg.type == MessageType.RESET:
                             # admin may have passed along the link for the next round, so parse it out
-                            msg = ResetMessage.parse_obj(data)
+                            msg = ResetMessage.model_validate(data)
+
+                            # update the ticket URL in the game state
+                            session.ticket_url = None if not msg.payload else msg.payload
 
                             # tell all clients to reset, and reset the server side vote data
                             session.reset_votes()
@@ -190,8 +195,11 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
 
     except WebSocketDisconnect:
         log.info(f"{player} has disconnected")
-        await session.broadcast(PlayerMessage(type=MessageType.DISCONNECTED, payload=player))
+
+        # clear the websocket first before broadcasting, otherwise the client will receive the message
         session.clear_websocket(player)
+
+        await session.broadcast(PlayerMessage(type=MessageType.DISCONNECTED, payload=player))
 
         # check if the game session has become empty, in which case clean up the memory
         if session.empty:

@@ -2,8 +2,7 @@ import enum
 import typing
 import uuid
 
-from pydantic import BaseModel, Field, AnyHttpUrl
-from pydantic.generics import GenericModel
+from pydantic import ConfigDict, BaseModel, Field, AnyHttpUrl, field_serializer
 
 
 class CreateGame(BaseModel):
@@ -40,10 +39,9 @@ class Player(BaseModel):
     id: uuid.UUID = Field(title="Univerisally Unique ID for this player", default_factory=uuid.uuid4)
     username: str
 
-    class Config:
-        json_encoders = {
-            uuid.UUID: lambda x: str(x),
-        }
+    @field_serializer("id")
+    def serialize_id(self, val: uuid.UUID, _info: typing.Any) -> str:
+        return str(val)
 
     def __str__(self):
         return f"{self.username} ({self.id})"
@@ -92,19 +90,18 @@ class GameState(BaseModel):
 
     game: Game
     player_states: dict[str, PlayerState]
+    ticket_url: typing.Optional[AnyHttpUrl] = None
 
 
 Payload = typing.TypeVar("Payload")
 
 
-class GenericMessage(GenericModel, typing.Generic[Payload]):
+class GenericMessage(BaseModel, typing.Generic[Payload]):
     """The generic message we use to communicate with clients - has a type and a payload."""
 
     type: MessageType
     payload: Payload
-
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 # define some concrete messages

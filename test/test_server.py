@@ -15,19 +15,19 @@ def client() -> TestClient:
 @pytest.fixture
 def game(client) -> Game:
     response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
-    return Game.parse_obj(response.json())
+    return Game.model_validate(response.json())
 
 
 @pytest.fixture
 def alice(client, game) -> Player:
     response = client.post(f"/api/join/{game.code}", json={"username": "Alice"})
-    return Player.parse_obj(response.json())
+    return Player.model_validate(response.json())
 
 
 @pytest.fixture
 def bob(client, game) -> Player:
     response = client.post(f"/api/join/{game.code}", json={"username": "Bob"})
-    return Player.parse_obj(response.json())
+    return Player.model_validate(response.json())
 
 
 class TestServer:
@@ -37,7 +37,7 @@ class TestServer:
         response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
         assert response.status_code == 200
 
-        game1 = Game.parse_obj(response.json())
+        game1 = Game.model_validate(response.json())
         assert game1.deck_id == 1
         assert game1.name == "My first game"
         assert game1.code is not None
@@ -45,7 +45,7 @@ class TestServer:
         response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
         assert response.status_code == 200
 
-        game2 = Game.parse_obj(response.json())
+        game2 = Game.model_validate(response.json())
         assert game1.code != game2.code
 
     def test_create_game_invalid_deck(self, client: TestClient):
@@ -56,7 +56,7 @@ class TestServer:
         response = client.post(f"/api/join/{game.code}", json={"username": "Alice"})
         assert response.status_code == 200
 
-        player = Player.parse_obj(response.json())
+        player = Player.model_validate(response.json())
         assert player.username == "Alice"
         assert player.id is not None
 
@@ -72,7 +72,7 @@ class TestServer:
         assert isinstance(data, list)
         assert len(data) > 0
 
-        deck = Deck.parse_obj(data[0])
+        deck = Deck.model_validate(data[0])
         assert deck.id == 1
         assert len(deck.cards) > 0
 
@@ -80,7 +80,7 @@ class TestServer:
         response = client.get("/api/decks/1")
         assert response.status_code == 200
 
-        deck = Deck.parse_obj(response.json())
+        deck = Deck.model_validate(response.json())
         assert deck.id == 1
         assert len(deck.cards) > 0
 
@@ -93,11 +93,11 @@ class TestServer:
         with client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as websocket:
             # upon connection we should get the game state
             data = websocket.receive_json()
-            msg = GenericMessage.parse_obj(data)
+            msg: GenericMessage = GenericMessage.model_validate(data)
             assert msg.type == MessageType.STATE
 
             # parse the payload and assert that we only have a single player, alice
-            payload = GameState.parse_obj(msg.payload)
+            payload = GameState.model_validate(msg.payload)
             assert payload.game == game
             assert len(payload.player_states) == 1
             key = str(alice.id)
@@ -110,15 +110,15 @@ class TestServer:
 
             # we should next get a broadcast message alice joined
             data = websocket.receive_json()
-            msg = GenericMessage.parse_obj(data)
+            msg = GenericMessage.model_validate(data)
             assert msg.type == MessageType.CONNECTED
 
-            payload = PlayerState.parse_obj(msg.payload)
-            assert payload.player == alice
-            assert payload.is_admin is True
-            assert payload.is_connected is True
-            assert payload.is_observing is False
-            assert payload.has_voted is False
+            ps_payload = PlayerState.model_validate(msg.payload)
+            assert ps_payload.player == alice
+            assert ps_payload.is_admin is True
+            assert ps_payload.is_connected is True
+            assert ps_payload.is_observing is False
+            assert ps_payload.has_voted is False
 
         # once alice disconnects, the game should delete itself since it has become empty
         assert game.code not in GAME_SESSIONS
@@ -126,19 +126,19 @@ class TestServer:
     @staticmethod
     def _assert_upon_join(alice_ws: WebSocket, bob_ws: WebSocket, alice: Player, bob: Player):
         data = alice_ws.receive_json()
-        msg = GenericMessage.parse_obj(data)
+        msg: GenericMessage = GenericMessage.model_validate(data)
         assert msg.type == MessageType.STATE
 
         data = bob_ws.receive_json()
-        msg = GenericMessage.parse_obj(data)
+        msg = GenericMessage.model_validate(data)
         assert msg.type == MessageType.STATE
 
         # alice should get 2 connected messages, 1 broadcast for her and 1 for bob
         for idx in range(2):
             data = alice_ws.receive_json()
-            msg = GenericMessage.parse_obj(data)
+            msg = GenericMessage.model_validate(data)
             assert msg.type == MessageType.CONNECTED
-            player_state = PlayerState.parse_obj(msg.payload)
+            player_state = PlayerState.model_validate(msg.payload)
             if idx == 0:
                 assert player_state.player == alice
             else:
@@ -146,24 +146,23 @@ class TestServer:
 
         # bob should get a single connected message, 1 broadcast for himself connecting
         data = bob_ws.receive_json()
-        msg = GenericMessage.parse_obj(data)
+        msg = GenericMessage.model_validate(data)
         assert msg.type == MessageType.CONNECTED
-        player_state = PlayerState.parse_obj(msg.payload)
+        player_state = PlayerState.model_validate(msg.payload)
         assert player_state.player == bob
 
     @staticmethod
     def _get_players_from_player_message(
         alice_ws: WebSocket, bob_ws: WebSocket, msg_type: MessageType
     ) -> tuple[Player, Player]:
-        msg_a, msg_b = GenericMessage.parse_obj(alice_ws.receive_json()), GenericMessage.parse_obj(
-            bob_ws.receive_json()
-        )
+        msg_a: GenericMessage = GenericMessage.model_validate(alice_ws.receive_json())
+        msg_b: GenericMessage = GenericMessage.model_validate(bob_ws.receive_json())
 
         assert msg_a.type == msg_type
-        player_a = Player.parse_obj(msg_a.payload)
+        player_a = Player.model_validate(msg_a.payload)
 
         assert msg_b.type == msg_type
-        player_b = Player.parse_obj(msg_b.payload)
+        player_b = Player.model_validate(msg_b.payload)
 
         return player_a, player_b
 
@@ -223,11 +222,11 @@ class TestServer:
             alice_ws.send_json({"type": "SYNC", "payload": None})
 
             # we should get the game state
-            msg = GenericMessage.parse_obj(alice_ws.receive_json())
+            msg: GenericMessage = GenericMessage.model_validate(alice_ws.receive_json())
             assert msg.type == MessageType.STATE
 
             # make sure its what we expect by parsing it
-            GameState.parse_obj(msg.payload)
+            GameState.model_validate(msg.payload)
 
     def test_websocket_reset(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
@@ -239,6 +238,7 @@ class TestServer:
 
             gs = GAME_SESSIONS[game.code]
             assert gs.is_admin(alice) is True
+            assert gs.ticket_url is None
 
             # set some votes on the game session that we can reset
             gs.players[alice.id].vote = 3
@@ -251,17 +251,19 @@ class TestServer:
             assert gs.players[alice.id].vote == 3
             assert gs.players[bob.id].vote == 5
 
-            # send a reset request by the admin now
+            # send a reset request by the admin now along with the next ticket
             alice_ws.send_json({"type": "RESET", "payload": "http://127.0.0.1:5137/some/ticket/url"})
 
             # fetch the broadcast return message
-            msg_a, msg_b = ResetMessage.parse_obj(alice_ws.receive_json()), ResetMessage.parse_obj(
+            msg_a, msg_b = ResetMessage.model_validate(alice_ws.receive_json()), ResetMessage.model_validate(
                 bob_ws.receive_json()
             )
             assert msg_a.type == MessageType.RESETGAME
-            assert msg_a.payload == "http://127.0.0.1:5137/some/ticket/url"
+            assert str(msg_a.payload) == "http://127.0.0.1:5137/some/ticket/url"
             assert msg_b.type == MessageType.RESETGAME
-            assert msg_b.payload == "http://127.0.0.1:5137/some/ticket/url"
+            assert str(msg_b.payload) == "http://127.0.0.1:5137/some/ticket/url"
+
+            assert str(gs.ticket_url) == "http://127.0.0.1:5137/some/ticket/url"
 
             # make sure the votes have been reset in the session
             assert gs.players[alice.id].vote is None
@@ -286,9 +288,9 @@ class TestServer:
             alice_ws.send_json({"type": "REVEAL", "payload": None})
 
             # fetch the broadcast return message
-            msg_a, msg_b = GenericMessage.parse_obj(alice_ws.receive_json()), GenericMessage.parse_obj(
-                bob_ws.receive_json()
-            )
+            msg_a: GenericMessage = GenericMessage.model_validate(alice_ws.receive_json())
+            msg_b: GenericMessage = GenericMessage.model_validate(bob_ws.receive_json())
+
             assert msg_a.type == MessageType.REVEALGAME
             assert msg_b.type == MessageType.REVEALGAME
 
