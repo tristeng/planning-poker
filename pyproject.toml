@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "planningpoker"
+name = "pp"
 version = "0.1.0"
 description = "A minimalist planning poker web application backend using WebSockets."
 authors = ["tristeng <tristen.georgiou@gmail.com>"]
@@ -7,14 +7,17 @@ license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-fastapi = "^0.79.0"
-uvicorn = {extras = ["standard"], version = "^0.18.2"}
+fastapi = "^0.108.0"
+uvicorn = {extras = ["standard"], version = "^0.25.0"}
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 black = "^22.6.0"
 pytest = "^7.1.2"
 pytest-asyncio = "^0.19.0"
 pytest-cov = "^3.0.0"
+httpx = "^0.26.0"
+flake8 = "^7.0.0"
+mypy = "^1.8.0"
 
 [tool.black]
 line-length = 120
@@ -22,3 +25,12 @@ line-length = 120
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+plugins = [
+    "pydantic.mypy",
+]
+packages = [
+    "pp",
+    "test",
+]

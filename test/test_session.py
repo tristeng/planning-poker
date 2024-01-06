@@ -67,7 +67,7 @@ class TestSession:
         assert num_sent == 1
         assert len(alice_ws.data_list) == 1
         assert alice_ws.data_list[0]["type"] == "CONNECTED"
-        player = Player.parse_obj(alice_ws.data_list[0]["payload"])
+        player = Player.model_validate(alice_ws.data_list[0]["payload"])
         assert player == alice
 
         bob_ws = fastapi.WebSocket()
@@ -78,11 +78,11 @@ class TestSession:
         assert num_sent == 2
         assert len(alice_ws.data_list) == 2
         assert alice_ws.data_list[1]["type"] == "CONNECTED"
-        player = Player.parse_obj(alice_ws.data_list[1]["payload"])
+        player = Player.model_validate(alice_ws.data_list[1]["payload"])
         assert player == bob
         assert len(bob_ws.data_list) == 1
         assert bob_ws.data_list[0]["type"] == "CONNECTED"
-        player = Player.parse_obj(alice_ws.data_list[1]["payload"])
+        player = Player.model_validate(alice_ws.data_list[1]["payload"])
         assert player == bob
 
     def test_add_player(self, game_session, alice, bob):

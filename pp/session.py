@@ -39,13 +39,15 @@ class GameSession:
         :param payload: the payload data to send to the players
         :return: the number of messages sent
         """
-        data = payload.json()
+        data = payload.model_dump_json()
 
         # players join the game before creating a websocket, so only broadcast to players with a websocket
-        connected_players = filter(lambda x: x.websocket is not None, self.players.values())
+        connected_players: typing.Iterable[PlayerData] = filter(
+            lambda x: x.websocket is not None, self.players.values()
+        )
 
         # send the message out async
-        tasks = [player.websocket.send_text(data) for player in connected_players]
+        tasks = [player.websocket.send_text(data) for player in connected_players]  # type: ignore
 
         if log.isEnabledFor(logging.DEBUG):  # pragma: no cover
             log.debug(f"Game '{self.game.code}': Broadcasting message to {len(tasks)} player(s): {data}")
@@ -70,7 +72,7 @@ class GameSession:
             # assume first player joining is the admin
             # NOTE: this player stays the admin for the life of the session - no other player can elevate to admin
             log.info(f"Game '{self.game.code}': Registering player {player} as the admin")
-            self.admin_id = player.id
+            self.admin_id = player.id  # type: ignore
 
         if player.id not in self.players:
             log.info(f"Game '{self.game.code}': Adding player {player} to game")
