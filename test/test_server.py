@@ -3,7 +3,17 @@ import pytest
 from fastapi import WebSocket
 from fastapi.testclient import TestClient
 
-from pp.model import Deck, Game, Player, GameState, GenericMessage, MessageType, PlayerState, ResetMessage
+from pp.model import (
+    Deck,
+    Game,
+    Player,
+    GameState,
+    GenericMessage,
+    MessageType,
+    PlayerState,
+    ResetMessage,
+    RoundState,
+)
 from pp.server import api, GAME_SESSIONS
 
 
@@ -107,6 +117,10 @@ class TestServer:
             assert payload.player_states[key].is_connected is True
             assert payload.player_states[key].is_observing is False
             assert payload.player_states[key].has_voted is False
+
+            # ensure that the we are in the init state (waiting for players to join)
+            gs = GAME_SESSIONS[game.code]
+            assert gs.round_state == RoundState.INIT
 
             # we should next get a broadcast message alice joined
             data = websocket.receive_json()
@@ -228,6 +242,41 @@ class TestServer:
             # make sure its what we expect by parsing it
             GameState.model_validate(msg.payload)
 
+    def test_websocket_sync_revealed_state(self, client: TestClient, game: Game, alice: Player, bob: Player):
+        with (
+            client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
+            client.websocket_connect(f"/api/ws/{bob.id}/{game.code}") as bob_ws,
+        ):
+            # assert broadcast messages upon joining
+            self._assert_upon_join(alice_ws, bob_ws, alice, bob)
+
+            gs = GAME_SESSIONS[game.code]
+            gs.round_state = RoundState.REVEALED
+
+            # set some votes on the game session that we can reset
+            gs.players[alice.id].vote = 3
+            gs.players[bob.id].vote = 5
+
+            # send a sync request
+            alice_ws.send_json({"type": "SYNC", "payload": None})
+
+            # we should get the game state followed by the vote state
+            msg: GenericMessage = GenericMessage.model_validate(alice_ws.receive_json())
+            assert msg.type == MessageType.STATE
+
+            # make sure its what we expect by parsing it
+            GameState.model_validate(msg.payload)
+
+            # get and validate the vote state
+            votes_msg: GenericMessage = GenericMessage.model_validate(alice_ws.receive_json())
+            assert votes_msg.type == MessageType.REVEALGAME
+
+            # we should have vote data for both players
+            assert str(alice.id) in votes_msg.payload
+            assert votes_msg.payload[str(alice.id)] == 3
+            assert str(bob.id) in votes_msg.payload
+            assert votes_msg.payload[str(bob.id)] == 5
+
     def test_websocket_reset(self, client: TestClient, game: Game, alice: Player, bob: Player):
         with (
             client.websocket_connect(f"/api/ws/{alice.id}/{game.code}") as alice_ws,
@@ -239,6 +288,7 @@ class TestServer:
             gs = GAME_SESSIONS[game.code]
             assert gs.is_admin(alice) is True
             assert gs.ticket_url is None
+            assert gs.round_state == RoundState.INIT
 
             # set some votes on the game session that we can reset
             gs.players[alice.id].vote = 3
@@ -250,6 +300,7 @@ class TestServer:
             # since bob sent it, nothing should happen
             assert gs.players[alice.id].vote == 3
             assert gs.players[bob.id].vote == 5
+            assert gs.round_state == RoundState.INIT
 
             # send a reset request by the admin now along with the next ticket
             alice_ws.send_json({"type": "RESET", "payload": "http://127.0.0.1:5137/some/ticket/url"})
@@ -264,6 +315,7 @@ class TestServer:
             assert str(msg_b.payload) == "http://127.0.0.1:5137/some/ticket/url"
 
             assert str(gs.ticket_url) == "http://127.0.0.1:5137/some/ticket/url"
+            assert gs.round_state == RoundState.VOTING
 
             # make sure the votes have been reset in the session
             assert gs.players[alice.id].vote is None
@@ -279,6 +331,7 @@ class TestServer:
 
             gs = GAME_SESSIONS[game.code]
             assert gs.is_admin(alice) is True
+            assert gs.round_state == RoundState.INIT
 
             # set some votes on the game session that we can reveal
             gs.players[alice.id].vote = 3
@@ -301,6 +354,8 @@ class TestServer:
 
             assert str(bob.id) in msg_a.payload
             assert msg_a.payload[str(bob.id)] == 5
+
+            assert gs.round_state == RoundState.REVEALED
 
     def test_ws_join_invalid_player(self, client: TestClient, game: Game):
         player = Player(username="Cassie")
