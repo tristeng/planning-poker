@@ -22,6 +22,7 @@ from pp.model import (
     GameStateMessage,
     PlayerStateMessage,
     ResetMessage,
+    RoundState,
 )
 from pp.session import GameSession
 from pp.utils import random_code, CODE_RE
@@ -105,6 +106,15 @@ async def get_deck_by_id(deck_id: int = Path(gt=0)):
         raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(ex))
 
 
+async def _send_game_state(websocket: WebSocket, session: GameSession):
+    """Sends the current game state to the client."""
+    await websocket.send_text(GameStateMessage(type=MessageType.STATE, payload=session.state).model_dump_json())
+
+    # check the current game state, if we are in the revealed state, also send out the VoteDataMessage
+    if session.round_state == RoundState.REVEALED:
+        await websocket.send_text(VoteDataMessage(type=MessageType.REVEALGAME, payload=session.votes).model_dump_json())
+
+
 @api.websocket("/api/ws/{player_id}/{code}")
 async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = Path(pattern=CODE_RE)):
     await websocket.accept()
@@ -131,7 +141,7 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
     session.set_websocket(player=player, websocket=websocket)
     try:
         # send the client the current state of the game
-        await websocket.send_text(GameStateMessage(type=MessageType.STATE, payload=session.state).model_dump_json())
+        await _send_game_state(websocket=websocket, session=session)
 
         # let other's know this user has connected
         await session.broadcast(PlayerStateMessage(type=MessageType.CONNECTED, payload=session.player_state(player.id)))
@@ -164,9 +174,7 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
 
                 # clients can request to sync with the current game state
                 if msg.type == MessageType.SYNC:
-                    await websocket.send_text(
-                        GameStateMessage(type=MessageType.STATE, payload=session.state).model_dump_json()
-                    )
+                    await _send_game_state(websocket=websocket, session=session)
 
                 if MessageType.is_admin_message(msg.type):
                     if session.is_admin(player):
@@ -174,8 +182,9 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
                             # admin may have passed along the link for the next round, so parse it out
                             msg = ResetMessage.model_validate(data)
 
-                            # update the ticket URL in the game state
+                            # update the ticket URL and round state in the game state
                             session.ticket_url = None if not msg.payload else msg.payload
+                            session.round_state = RoundState.VOTING  # reset automatically starts the next round
 
                             # tell all clients to reset, and reset the server side vote data
                             session.reset_votes()
@@ -186,6 +195,7 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
                         if msg.type == MessageType.REVEAL:
                             # broadcast all the user's votes at the same time
                             await session.broadcast(VoteDataMessage(type=MessageType.REVEALGAME, payload=session.votes))
+                            session.round_state = RoundState.REVEALED
                     else:
                         log.error(f"Player {player} sent an admin message but is not admin!")
 

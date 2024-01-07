@@ -75,6 +75,14 @@ class MessageType(str, enum.Enum):
         return msg_type in [MessageType.RESET, MessageType.REVEAL]
 
 
+class RoundState(str, enum.Enum):
+    """The state of the current round."""
+
+    INIT = "INIT"  # the game has been created but no round is in progress yet
+    VOTING = "VOTING"  # the round is in progress
+    REVEALED = "REVEALED"  # the round has been revealed, but not reset
+
+
 class PlayerState(BaseModel):
     """The current state of a player."""
 
@@ -91,6 +99,7 @@ class GameState(BaseModel):
     game: Game
     player_states: dict[str, PlayerState]
     ticket_url: typing.Optional[AnyHttpUrl] = None
+    round_state: RoundState = RoundState.INIT
 
 
 Payload = typing.TypeVar("Payload")

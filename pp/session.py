@@ -8,7 +8,7 @@ import uuid
 from fastapi import WebSocket
 from pydantic import AnyHttpUrl
 
-from pp.model import Game, Player, GenericMessage, GameState, PlayerState
+from pp.model import Game, Player, GenericMessage, GameState, PlayerState, RoundState
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +34,7 @@ class GameSession:
         self.admin_id: typing.Optional[Player] = None
         self.created: datetime.datetime = datetime.datetime.utcnow()
         self.ticket_url: typing.Optional[AnyHttpUrl] = None
+        self.round_state: RoundState = RoundState.INIT
 
     async def broadcast(self, payload: GenericMessage) -> int:
         """Broadcasts a message to all players in this game.
@@ -185,7 +186,9 @@ class GameSession:
             )
             for pd in self.players.values()
         }
-        return GameState(game=self.game, player_states=player_states, ticket_url=self.ticket_url)
+        return GameState(
+            game=self.game, player_states=player_states, ticket_url=self.ticket_url, round_state=self.round_state
+        )
 
     def player_state(self, key: uuid.UUID) -> PlayerState:
         """Gets the requested players state.
