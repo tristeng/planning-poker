@@ -1,8 +1,30 @@
 import enum
 import typing
 import uuid
+import datetime
 
-from pydantic import ConfigDict, BaseModel, Field, AnyHttpUrl, field_serializer
+from pydantic import ConfigDict, BaseModel, Field, AnyHttpUrl, field_serializer, model_validator
+
+
+class RoundTimerSettings(BaseModel):
+    """The settings for a round timer."""
+
+    maximum: int = Field(title="The maximum time for a round, in minutes", default=5, ge=2)
+    warning: int = Field(title="The time when a desired warning should be displayed", default=4, ge=1)
+
+    @model_validator(mode="after")
+    def check_warning_is_less_than_max(self) -> "RoundTimerSettings":
+        maximum = self.maximum
+        warning = self.warning
+        if warning >= maximum:
+            raise ValueError("warning must be less than maximum")
+        return self
+
+
+class GameSettings(BaseModel):
+    """The settings for a game."""
+
+    round_timer_settings: RoundTimerSettings | None = Field(title="The settings for the round timer", default=None)
 
 
 class CreateGame(BaseModel):
@@ -10,6 +32,7 @@ class CreateGame(BaseModel):
 
     name: str = Field(title="A name for the game", max_length=100)
     deck_id: int = Field(title="The ID of the deck to use")
+    game_settings: GameSettings = Field(title="The settings for the game")
 
 
 class Game(CreateGame):
@@ -98,8 +121,9 @@ class GameState(BaseModel):
 
     game: Game
     player_states: dict[str, PlayerState]
-    ticket_url: typing.Optional[AnyHttpUrl] = None
+    ticket_url: AnyHttpUrl | None = None
     round_state: RoundState = RoundState.INIT
+    round_start: datetime.datetime | None = None  # the time the current round started, in UTC
 
 
 Payload = typing.TypeVar("Payload")
@@ -118,6 +142,6 @@ Message = GenericMessage[typing.Any]  # the base message we expect from a client
 PlayerMessage = GenericMessage[Player]  # provides generic information related to a player
 PlayerStateMessage = GenericMessage[PlayerState]  # provides generic information on the player's state
 SubmitVoteMessage = GenericMessage[float]  # a vote submission from a player
-VoteDataMessage = GenericMessage[dict[str, typing.Optional[float]]]  # reveals the votes to all other players
+VoteDataMessage = GenericMessage[dict[str, float | None]]  # reveals the votes to all other players
 GameStateMessage = GenericMessage[GameState]  # a message sent to clients to sync the game state from the server
-ResetMessage = GenericMessage[typing.Optional[AnyHttpUrl]]  # a message to indicate the game should be reset
+ResetMessage = GenericMessage[AnyHttpUrl | None]  # a message to indicate the game should be reset

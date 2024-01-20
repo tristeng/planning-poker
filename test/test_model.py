@@ -1,4 +1,6 @@
-from pp.model import MessageType, Player
+import pytest
+
+from pp.model import MessageType, Player, RoundTimerSettings
 
 
 class TestMessageType:
@@ -14,3 +16,18 @@ class TestMessageType:
     def test_print_player(self):
         player = Player(username="Alice")
         assert f"Alice ({player.id})" == str(player)
+
+
+class TestRoundTimerSettings:
+    def test_round_timer_settings(self):
+        actual = RoundTimerSettings()
+        assert actual.maximum == 5
+        assert actual.warning == 4
+
+        actual = RoundTimerSettings(maximum=10, warning=9)
+        assert actual.maximum == 10
+        assert actual.warning == 9
+
+        with pytest.raises(ValueError) as excinfo:
+            RoundTimerSettings(maximum=10, warning=11)
+        assert "warning must be less than maximum" in str(excinfo.value)

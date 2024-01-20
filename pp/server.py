@@ -50,7 +50,7 @@ if pp_cors_urls is not None:  # pragma: no cover
     log.info(f"Updated CORS origins: {', '.join(origins)}")
 
 api.add_middleware(
-    CORSMiddleware,
+    CORSMiddleware,  # noqa
     allow_origins=list(origins),
     allow_credentials=True,
     allow_methods=["*"],
@@ -74,7 +74,7 @@ async def create_game(game: CreateGame):
     while code in GAME_SESSIONS:  # pragma: no cover
         code = random_code()
 
-    game = Game(code=code, name=game.name, deck_id=deck.id)
+    game = Game(code=code, name=game.name, deck_id=deck.id, game_settings=game.game_settings)
     GAME_SESSIONS[code] = GameSession(game=game)
     log.info(f"New game called {game.name} created, using deck {game.deck_id} and unique code '{code}'")
     return game
@@ -182,12 +182,8 @@ async def websocket_endpoint(websocket: WebSocket, player_id: UUID, code: str = 
                             # admin may have passed along the link for the next round, so parse it out
                             msg = ResetMessage.model_validate(data)
 
-                            # update the ticket URL and round state in the game state
-                            session.ticket_url = None if not msg.payload else msg.payload
-                            session.round_state = RoundState.VOTING  # reset automatically starts the next round
-
-                            # tell all clients to reset, and reset the server side vote data
-                            session.reset_votes()
+                            # reset the round
+                            session.reset_round(ticket_url=None if not msg.payload else msg.payload)
 
                             # broadcast the message along with the optional payload (link to next ticket)
                             await session.broadcast(ResetMessage(type=MessageType.RESETGAME, payload=msg.payload))
