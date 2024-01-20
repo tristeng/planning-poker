@@ -18,8 +18,8 @@ class PlayerData:
     """Session data for the player"""
 
     player: Player
-    websocket: typing.Optional[WebSocket] = None
-    vote: typing.Optional[float] = None
+    websocket: WebSocket | None = None
+    vote: float | None = None
     is_observing: bool = False
 
 
@@ -31,10 +31,11 @@ class GameSession:
         """
         self.game = game
         self.players: dict[uuid.UUID, PlayerData] = {}
-        self.admin_id: typing.Optional[Player] = None
+        self.admin_id: Player | None = None
         self.created: datetime.datetime = datetime.datetime.utcnow()
-        self.ticket_url: typing.Optional[AnyHttpUrl] = None
+        self.ticket_url: AnyHttpUrl | None = None
         self.round_state: RoundState = RoundState.INIT
+        self.round_start: datetime.datetime | None = None  # the time the current round started, in UTC
 
     async def broadcast(self, payload: GenericMessage) -> int:
         """Broadcasts a message to all players in this game.
@@ -152,7 +153,7 @@ class GameSession:
             self.players[player.id].is_observing = not self.players[player.id].is_observing
 
     @property
-    def votes(self) -> dict[str, typing.Optional[float]]:
+    def votes(self) -> dict[str, float | None]:
         """Fetches the current player votes.
 
         :return: a dictionary of player id to their vote value
@@ -187,7 +188,11 @@ class GameSession:
             for pd in self.players.values()
         }
         return GameState(
-            game=self.game, player_states=player_states, ticket_url=self.ticket_url, round_state=self.round_state
+            game=self.game,
+            player_states=player_states,
+            ticket_url=self.ticket_url,
+            round_state=self.round_state,
+            round_start=self.round_start,
         )
 
     def player_state(self, key: uuid.UUID) -> PlayerState:
@@ -204,3 +209,20 @@ class GameSession:
             is_observing=pd.is_observing,
             has_voted=pd.vote is not None,
         )
+
+    def reset_round(self, ticket_url: AnyHttpUrl | None):
+        """Resets the round
+
+        :param ticket_url: the optional ticket URL
+        """
+        # update the ticket url
+        self.ticket_url = ticket_url
+
+        # reset the round state to voting
+        self.round_state = RoundState.VOTING
+
+        # reset the round_start to now using the UTC timezone
+        self.round_start = datetime.datetime.now(datetime.timezone.utc)
+
+        # reset the player votes
+        self.reset_votes()

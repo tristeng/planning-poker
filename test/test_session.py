@@ -3,13 +3,13 @@ import json
 import fastapi
 import pytest
 
-from pp.model import Game, Player, PlayerMessage, MessageType
+from pp.model import Game, Player, PlayerMessage, MessageType, GameSettings, RoundState
 from pp.session import GameSession
 
 
 @pytest.fixture
 def game() -> Game:
-    return Game(code="abcd", deck_id=1, name="A new game")
+    return Game(code="abcd", deck_id=1, name="A new game", game_settings=GameSettings())
 
 
 @pytest.fixture
@@ -150,6 +150,10 @@ class TestSession:
         assert game_session.players[alice.id].websocket == alice_ws
         assert game_session.players[bob.id].websocket == bob_ws
 
+        # test no error if we try to apply functionality for a user not part of the game
+        frank = Player(username="frank")
+        game_session.set_websocket(frank, bob_ws)  # helps to get our coverage up to 100%
+
     def test_clear_websocket(self, game_and_players, mock_websocket):
         game_session, alice, bob = game_and_players
 
@@ -172,6 +176,10 @@ class TestSession:
         assert game_session.players[bob.id].vote is None
         assert game_session.players[bob.id].is_observing is False
         assert game_session.players[bob.id].websocket is None
+
+        # test no error if we try to apply functionality for a user not part of the game
+        frank = Player(username="frank")
+        game_session.clear_websocket(frank)  # helps to get our coverage up to 100%
 
     def test_is_admin(self, game_and_players):
         game_session, alice, bob = game_and_players
@@ -198,6 +206,10 @@ class TestSession:
         assert game_session.players[alice.id].vote == 3
         assert game_session.players[bob.id].vote == 1
 
+        # test no error if we try to apply functionality for a user not part of the game
+        frank = Player(username="frank")
+        game_session.update_vote(frank, 1)  # helps to get our coverage up to 100%
+
     def test_reset_votes(self, game_and_players):
         game_session, alice, bob = game_and_players
 
@@ -220,6 +232,10 @@ class TestSession:
 
         assert game_session.players[alice.id].is_observing is True
         assert game_session.players[bob.id].is_observing is False
+
+        # test no error if we try to apply functionality for a user not part of the game
+        frank = Player(username="frank")
+        game_session.toggle_observing(frank)  # helps to get our coverage up to 100%
 
     def test_votes(self, game_and_players):
         game_session, alice, bob = game_and_players
@@ -261,6 +277,13 @@ class TestSession:
         assert str(alice.id) in state.player_states
         assert str(bob.id) in state.player_states
 
+        assert state.game is not None
+        assert state.game.game_settings is not None
+        assert state.game.game_settings.round_timer_settings is None
+        assert state.ticket_url is None
+        assert state.round_start is None
+        assert state.round_state == RoundState.INIT
+
         # initial state of our test game session means no players connected, have voted or are observing
         assert all([ps.is_connected is False for ps in state.player_states.values()])
         assert all([ps.has_voted is False for ps in state.player_states.values()])
@@ -292,3 +315,26 @@ class TestSession:
         assert bob_state.is_admin is False
         assert bob_state.is_connected is True
         assert bob_state.has_voted is True
+
+    def test_reset_round(self, game_and_players):
+        game_session, alice, bob = game_and_players
+
+        game_session.update_vote(alice, 3)
+        game_session.update_vote(bob, 1)
+        assert game_session.players[alice.id].vote == 3
+        assert game_session.players[bob.id].vote == 1
+
+        game_session.reset_round("https://someurl.com/ticket/1")
+        assert game_session.players[alice.id].vote is None
+        assert game_session.players[bob.id].vote is None
+        assert game_session.ticket_url == "https://someurl.com/ticket/1"
+        assert game_session.round_state == "VOTING"
+        assert game_session.round_start is not None
+
+        state = game_session.state
+        assert state.game is not None
+        assert state.game.game_settings is not None
+        assert state.game.game_settings.round_timer_settings is None
+        assert str(state.ticket_url) == "https://someurl.com/ticket/1"
+        assert state.round_start is not None
+        assert state.round_state == RoundState.VOTING

@@ -1,7 +1,7 @@
 import pytest
 
-from fastapi import WebSocket
 from fastapi.testclient import TestClient
+from starlette.testclient import WebSocketTestSession
 
 from pp.model import (
     Deck,
@@ -13,6 +13,8 @@ from pp.model import (
     PlayerState,
     ResetMessage,
     RoundState,
+    GameSettings,
+    RoundTimerSettings,
 )
 from pp.server import api, GAME_SESSIONS
 
@@ -23,8 +25,31 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def game(client) -> Game:
-    response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
+def game_settings() -> GameSettings:
+    # the default game settings
+    return GameSettings(round_timer_settings=None)
+
+
+@pytest.fixture
+def game(client, game_settings) -> Game:
+    response = client.post(
+        "/api/game", json={"name": "My first game", "deck_id": 1, "game_settings": game_settings.model_dump()}
+    )
+    return Game.model_validate(response.json())
+
+
+@pytest.fixture
+def game_settings_with_round_timer() -> GameSettings:
+    # game settings with round timer defaults
+    return GameSettings(round_timer_settings=RoundTimerSettings())
+
+
+@pytest.fixture
+def game_with_round_timer(client, game_settings_with_round_timer) -> Game:
+    response = client.post(
+        "/api/game",
+        json={"name": "My first game", "deck_id": 1, "game_settings": game_settings_with_round_timer.model_dump()},
+    )
     return Game.model_validate(response.json())
 
 
@@ -43,23 +68,47 @@ def bob(client, game) -> Player:
 class TestServer:
     """Depends on the default MemoryDB"""
 
-    def test_create_game(self, client: TestClient):
-        response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
+    def test_create_game(self, client: TestClient, game_settings: GameSettings):
+        response = client.post(
+            "/api/game", json={"name": "My first game", "deck_id": 1, "game_settings": game_settings.model_dump()}
+        )
         assert response.status_code == 200
 
         game1 = Game.model_validate(response.json())
         assert game1.deck_id == 1
         assert game1.name == "My first game"
         assert game1.code is not None
+        assert game1.game_settings is not None
+        assert game1.game_settings.round_timer_settings is None
 
-        response = client.post("/api/game", json={"name": "My first game", "deck_id": 1})
+        response = client.post(
+            "/api/game", json={"name": "My first game", "deck_id": 1, "game_settings": game_settings.model_dump()}
+        )
         assert response.status_code == 200
 
         game2 = Game.model_validate(response.json())
         assert game1.code != game2.code
 
-    def test_create_game_invalid_deck(self, client: TestClient):
-        response = client.post("/api/game", json={"name": "My first game", "deck_id": 999})
+    def test_create_game_with_round_timer(self, client: TestClient, game_settings_with_round_timer: GameSettings):
+        response = client.post(
+            "/api/game",
+            json={"name": "My first game", "deck_id": 1, "game_settings": game_settings_with_round_timer.model_dump()},
+        )
+        assert response.status_code == 200
+
+        game1 = Game.model_validate(response.json())
+        assert game1.deck_id == 1
+        assert game1.name == "My first game"
+        assert game1.code is not None
+        assert game1.game_settings is not None
+        assert game1.game_settings.round_timer_settings is not None
+        assert game1.game_settings.round_timer_settings.maximum == 5
+        assert game1.game_settings.round_timer_settings.warning == 4
+
+    def test_create_game_invalid_deck(self, client: TestClient, game_settings: GameSettings):
+        response = client.post(
+            "/api/game", json={"name": "My first game", "deck_id": 999, "game_settings": game_settings.model_dump()}
+        )
         assert response.status_code == 404
 
     def test_join_game(self, client: TestClient, game: Game):
@@ -138,7 +187,7 @@ class TestServer:
         assert game.code not in GAME_SESSIONS
 
     @staticmethod
-    def _assert_upon_join(alice_ws: WebSocket, bob_ws: WebSocket, alice: Player, bob: Player):
+    def _assert_upon_join(alice_ws: WebSocketTestSession, bob_ws: WebSocketTestSession, alice: Player, bob: Player):
         data = alice_ws.receive_json()
         msg: GenericMessage = GenericMessage.model_validate(data)
         assert msg.type == MessageType.STATE
@@ -167,7 +216,7 @@ class TestServer:
 
     @staticmethod
     def _get_players_from_player_message(
-        alice_ws: WebSocket, bob_ws: WebSocket, msg_type: MessageType
+        alice_ws: WebSocketTestSession, bob_ws: WebSocketTestSession, msg_type: MessageType
     ) -> tuple[Player, Player]:
         msg_a: GenericMessage = GenericMessage.model_validate(alice_ws.receive_json())
         msg_b: GenericMessage = GenericMessage.model_validate(bob_ws.receive_json())
