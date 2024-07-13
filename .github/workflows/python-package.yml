@@ -29,12 +29,12 @@ jobs:
         python -m pip install --upgrade pip
         python -m pip install poetry==1.7.1
         poetry install
-    - name: Lint with flake8, mypy, and black
+    - name: Lint and check formatting with ruff and mypy
       run: |
         # stop the build if any lint operations fail
-        poetry run flake8 . --count
         poetry run mypy
-        poetry run black --check .
+        poetry run ruff check --output-format=github .
+        poetry run ruff format --check .
     - name: Run unit tests with pytest
       run: |
           poetry run pytest

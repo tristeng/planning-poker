@@ -355,8 +355,9 @@ class TestServer:
             alice_ws.send_json({"type": "RESET", "payload": "http://127.0.0.1:5137/some/ticket/url"})
 
             # fetch the broadcast return message
-            msg_a, msg_b = ResetMessage.model_validate(alice_ws.receive_json()), ResetMessage.model_validate(
-                bob_ws.receive_json()
+            msg_a, msg_b = (
+                ResetMessage.model_validate(alice_ws.receive_json()),
+                ResetMessage.model_validate(bob_ws.receive_json()),
             )
             assert msg_a.type == MessageType.RESETGAME
             assert str(msg_a.payload) == "http://127.0.0.1:5137/some/ticket/url"
