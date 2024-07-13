@@ -78,23 +78,24 @@ To see the coverage report, run:
 poetry run coverage report
 ```
 
-### Linting
-This project uses flake8, mypy and black for linting and code formatting. To ensure that the code is properly formatted,
-you can run checks using each.
+### Linting, Formatting, and Type Checking
+This project uses [ruff](https://docs.astral.sh/ruff/) for linting and formatting, and 
+[mypy](https://www.mypy-lang.org/) for static type checking. To ensure that the code is properly formatted, you can run
+checks using each.
 
-To run flake8, run:
+To run ruff linter and apply fixes automatically:
 ```shell
-poetry run flake8 . --count
+poetry run ruff check --fix .
 ```
 
-To run mypy, run:
+To run ruff formatter and apply fixes automatically:
+```shell
+poetry run ruff format .
+```
+
+To run mypy static type checking:
 ```shell
 poetry run mypy
-```
-
-To run black, run:
-```shell
-poetry run black --check .
 ```
 
 ## Docker
