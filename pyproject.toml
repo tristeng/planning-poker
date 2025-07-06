@@ -6,7 +6,7 @@ authors = ["tristeng <tristen.georgiou@gmail.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = "^3.11"
 fastapi = "^0.115"
 uvicorn = { extras = ["standard"], version = "^0.35" }
 python-multipart = "^0.0.20"

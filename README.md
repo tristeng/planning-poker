@@ -45,7 +45,7 @@ called `MemoryDeckDB` and is a child class of `DeckDB`. If you wish to use a dif
 override the `DeckDB` class and implement your own methods.
 
 ## Development
-This project supports Python 3.10 or greater (currently tested on 3.10 and 3.11) and uses 
+This project supports Python 3.11 or greater (currently tested on 3.11, 3.12, and 3.13) and uses 
 [FastAPI](https://fastapi.tiangolo.com/) as the web framework.
 
 ### Poetry
